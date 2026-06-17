@@ -1,207 +1,149 @@
 """
-ATM Banking System (Console-Based)
-------------------------------------
-A simple console application that simulates basic ATM operations:
-login/authentication, balance inquiry, cash deposit, cash withdrawal,
-mini statement, and PIN change.
+ATM Banking System (Streamlit Web App)
+----------------------------------------
+A web-based version of the console ATM Banking System, built with Streamlit
+for deployment on Streamlit Community Cloud / GitHub.
 
-Course   : Computer Programming (Lab) - CS-112-L
-Task     : Open Ended Lab - ATM Banking System
+Run locally with:
+    streamlit run app.py
 """
 
+import streamlit as st
+
+st.set_page_config(page_title="Python ATM Banking System", page_icon="🏦", layout="centered")
+
 # ---------------------------------------------------------
-# Predefined "database" of bank accounts.
-# Key   -> Account Number (string)
-# Value -> dictionary holding name, pin, balance and history
+# Initialize the account "database" once per browser session
 # ---------------------------------------------------------
-accounts = {
-    "1001": {"name": "Ali Raza",    "pin": "1234", "balance": 5000.0,  "history": []},
-    "1002": {"name": "Sara Khan",   "pin": "5678", "balance": 12000.0, "history": []},
-    "1003": {"name": "Bilal Ahmed", "pin": "0000", "balance": 750.0,   "history": []},
-}
+if "accounts" not in st.session_state:
+    st.session_state.accounts = {
+        "1001": {"name": "Ali Raza",    "pin": "1234", "balance": 5000.0,  "history": []},
+        "1002": {"name": "Sara Khan",   "pin": "5678", "balance": 12000.0, "history": []},
+        "1003": {"name": "Bilal Ahmed", "pin": "0000", "balance": 750.0,   "history": []},
+    }
 
-MAX_PIN_ATTEMPTS = 3   # how many times a user can retry the PIN
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.current_acc = None
+    st.session_state.attempts = 0
 
+MAX_PIN_ATTEMPTS = 3
+accounts = st.session_state.accounts
 
-def show_welcome():
-    """Display the welcome banner for the ATM."""
-    print("=" * 50)
-    print("        WELCOME TO THE PYTHON ATM SYSTEM")
-    print("=" * 50)
-
-
-def get_account_number():
-    """Take the account number as input from the user and return it."""
-    acc_no = input("Enter your Account Number: ").strip()
-    return acc_no
+st.title("🏦 Python ATM Banking System")
 
 
-def authenticate(account):
-    """
-    Ask the user for their PIN and verify it against the account.
-    Allows up to MAX_PIN_ATTEMPTS tries.
-    Returns True if authentication succeeds, False otherwise.
-    """
-    attempts = 0
-    while attempts < MAX_PIN_ATTEMPTS:
-        entered_pin = input("Enter your 4-digit PIN: ").strip()
+def login_screen():
+    """Show the account number / PIN login form."""
+    st.subheader("Please Login")
 
-        if not entered_pin.isdigit() or len(entered_pin) != 4:
-            print("Invalid format. PIN must be exactly 4 digits.\n")
-            attempts += 1
-            continue
+    acc_no = st.text_input("Account Number")
+    pin = st.text_input("PIN", type="password", max_chars=4)
 
-        if entered_pin == account["pin"]:
-            print(f"\nLogin successful. Welcome, {account['name']}!\n")
-            return True
+    if st.button("Login", use_container_width=True):
+        if acc_no not in accounts:
+            st.error("Account not found. Please check the account number.")
+        elif not pin.isdigit() or len(pin) != 4:
+            st.error("PIN must be exactly 4 digits.")
+        elif pin == accounts[acc_no]["pin"]:
+            st.session_state.logged_in = True
+            st.session_state.current_acc = acc_no
+            st.session_state.attempts = 0
+            st.rerun()
         else:
-            attempts += 1
-            remaining = MAX_PIN_ATTEMPTS - attempts
+            st.session_state.attempts += 1
+            remaining = MAX_PIN_ATTEMPTS - st.session_state.attempts
             if remaining > 0:
-                print(f"Incorrect PIN. {remaining} attempt(s) remaining.\n")
+                st.error(f"Incorrect PIN. {remaining} attempt(s) remaining.")
+            else:
+                st.error("Too many incorrect attempts. Please try again later.")
 
-    print("Too many incorrect attempts. Card blocked for this session.\n")
-    return False
-
-
-def show_menu():
-    """Display the main ATM operations menu."""
-    print("-" * 50)
-    print("1. Check Balance")
-    print("2. Deposit Cash")
-    print("3. Withdraw Cash")
-    print("4. Mini Statement")
-    print("5. Change PIN")
-    print("6. Exit")
-    print("-" * 50)
+    st.caption("Demo accounts \u2014 1001 / 1234, 1002 / 5678, 1003 / 0000")
 
 
 def check_balance(account):
-    """Print the current balance of the account."""
-    print(f"\nYour current balance is: Rs. {account['balance']:.2f}\n")
+    st.metric("Current Balance", f"Rs. {account['balance']:.2f}")
 
 
 def deposit_cash(account):
-    """Take a deposit amount, validate it, and update the balance."""
-    amount_str = input("Enter amount to deposit: Rs. ").strip()
-
-    if not amount_str.replace(".", "", 1).isdigit():
-        print("\nInvalid amount entered.\n")
-        return
-
-    amount = float(amount_str)
-
-    if amount <= 0:
-        print("\nDeposit amount must be greater than zero.\n")
-        return
-
-    account["balance"] += amount
-    account["history"].append(f"Deposited Rs. {amount:.2f}")
-    print(f"\nRs. {amount:.2f} deposited successfully.")
-    print(f"New balance: Rs. {account['balance']:.2f}\n")
+    amount = st.number_input("Amount to deposit (Rs.)", min_value=0.0, step=100.0, format="%.2f")
+    if st.button("Deposit"):
+        if amount <= 0:
+            st.error("Deposit amount must be greater than zero.")
+        else:
+            account["balance"] += amount
+            account["history"].append(f"Deposited Rs. {amount:.2f}")
+            st.success(f"Rs. {amount:.2f} deposited successfully. New balance: Rs. {account['balance']:.2f}")
 
 
 def withdraw_cash(account):
-    """Take a withdrawal amount, validate it, and update the balance."""
-    amount_str = input("Enter amount to withdraw: Rs. ").strip()
-
-    if not amount_str.replace(".", "", 1).isdigit():
-        print("\nInvalid amount entered.\n")
-        return
-
-    amount = float(amount_str)
-
-    if amount <= 0:
-        print("\nWithdrawal amount must be greater than zero.\n")
-    elif amount > account["balance"]:
-        print("\nInsufficient balance. Transaction declined.\n")
-    else:
-        account["balance"] -= amount
-        account["history"].append(f"Withdrew Rs. {amount:.2f}")
-        print(f"\nPlease collect your cash: Rs. {amount:.2f}")
-        print(f"New balance: Rs. {account['balance']:.2f}\n")
+    amount = st.number_input("Amount to withdraw (Rs.)", min_value=0.0, step=100.0, format="%.2f")
+    if st.button("Withdraw"):
+        if amount <= 0:
+            st.error("Withdrawal amount must be greater than zero.")
+        elif amount > account["balance"]:
+            st.error("Insufficient balance. Transaction declined.")
+        else:
+            account["balance"] -= amount
+            account["history"].append(f"Withdrew Rs. {amount:.2f}")
+            st.success(f"Please collect Rs. {amount:.2f}. New balance: Rs. {account['balance']:.2f}")
 
 
 def mini_statement(account):
-    """Display the last few transactions for the account."""
-    print("\n----- MINI STATEMENT -----")
-    if len(account["history"]) == 0:
-        print("No transactions yet.")
+    st.write("#### Last 5 Transactions")
+    if not account["history"]:
+        st.info("No transactions yet.")
     else:
-        last_five = account["history"][-5:]
-        for index, entry in enumerate(last_five, start=1):
-            print(f"{index}. {entry}")
-    print("---------------------------\n")
+        for index, entry in enumerate(account["history"][-5:], start=1):
+            st.write(f"{index}. {entry}")
 
 
 def change_pin(account):
-    """Allow the user to change their PIN after confirming the new one twice."""
-    new_pin = input("Enter new 4-digit PIN: ").strip()
-    confirm_pin = input("Confirm new PIN: ").strip()
-
-    if not new_pin.isdigit() or len(new_pin) != 4:
-        print("\nInvalid PIN format. PIN not changed.\n")
-        return
-
-    if new_pin != confirm_pin:
-        print("\nPINs do not match. PIN not changed.\n")
-        return
-
-    account["pin"] = new_pin
-    account["history"].append("PIN changed")
-    print("\nPIN changed successfully.\n")
-
-
-def run_session(account):
-    """
-    Run the menu loop for an authenticated account.
-    Keeps showing the menu until the user chooses to exit.
-    """
-    while True:
-        show_menu()
-        choice = input("Select an option (1-6): ").strip()
-
-        if choice == "1":
-            check_balance(account)
-        elif choice == "2":
-            deposit_cash(account)
-        elif choice == "3":
-            withdraw_cash(account)
-        elif choice == "4":
-            mini_statement(account)
-        elif choice == "5":
-            change_pin(account)
-        elif choice == "6":
-            print("\nThank you for using the Python ATM System. Goodbye!\n")
-            break
+    new_pin = st.text_input("New 4-digit PIN", type="password", max_chars=4, key="new_pin")
+    confirm_pin = st.text_input("Confirm new PIN", type="password", max_chars=4, key="confirm_pin")
+    if st.button("Update PIN"):
+        if not new_pin.isdigit() or len(new_pin) != 4:
+            st.error("Invalid PIN format. PIN must be 4 digits.")
+        elif new_pin != confirm_pin:
+            st.error("PINs do not match. PIN not changed.")
         else:
-            print("\nInvalid choice. Please select a number between 1 and 6.\n")
+            account["pin"] = new_pin
+            account["history"].append("PIN changed")
+            st.success("PIN changed successfully.")
 
 
-def another_customer():
-    """Ask whether another customer wants to use the ATM. Returns True/False."""
-    answer = input("Do you want to start a new transaction? (y/n): ").strip().lower()
-    return answer == "y"
+def atm_menu():
+    """Main menu shown after a successful login."""
+    account = accounts[st.session_state.current_acc]
+
+    st.success(f"Welcome, {account['name']}! (Account: {st.session_state.current_acc})")
+
+    choice = st.sidebar.radio(
+        "Select an operation",
+        ["Check Balance", "Deposit Cash", "Withdraw Cash", "Mini Statement", "Change PIN", "Logout"]
+    )
+
+    if choice == "Check Balance":
+        check_balance(account)
+    elif choice == "Deposit Cash":
+        deposit_cash(account)
+    elif choice == "Withdraw Cash":
+        withdraw_cash(account)
+    elif choice == "Mini Statement":
+        mini_statement(account)
+    elif choice == "Change PIN":
+        change_pin(account)
+    elif choice == "Logout":
+        st.session_state.logged_in = False
+        st.session_state.current_acc = None
+        st.session_state.attempts = 0
+        st.rerun()
 
 
-def main():
-    """Driver function that controls the overall flow of the program."""
-    show_welcome()
-
-    while True:
-        acc_no = get_account_number()
-
-        if acc_no not in accounts:
-            print("\nAccount not found. Please check the account number.\n")
-        else:
-            account = accounts[acc_no]
-            if authenticate(account):
-                run_session(account)
-
-        if not another_customer():
-            print("\nSession ended. Thank you!")
-            break
-
-
-if __name__ == "__main__":
-    main()
+# ---------------------------------------------------------
+# Main driver
+# ---------------------------------------------------------
+if st.session_state.logged_in:
+    atm_menu()
+else:
+    login_screen()
