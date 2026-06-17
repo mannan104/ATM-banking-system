@@ -1,0 +1,6 @@
+# Requirements for ATM Banking System (atm_app.py)
+#
+# This project uses only Python's built-in standard library
+# (input, print, dictionaries, etc.) — no external packages are required.
+#
+# Recommended interpreter: Python 3.8 or later
